@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+	"time"
+)
 
 func TestPortScore(t *testing.T) {
 	tests := []struct {
@@ -88,5 +92,22 @@ func TestInitUSBATESIMManagerAfterDelayedUSBOpen(t *testing.T) {
 	managerAgain, _ := instance.currentESIMManager()
 	if managerAgain != manager {
 		t.Fatal("repeated USB AT recovery replaced the existing eSIM manager")
+	}
+}
+
+func TestSMSCacheRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sms-messages.json")
+	want := receivedSMS{Sender: "10010", Content: "测试短信", Timestamp: time.Date(2026, 9, 9, 23, 0, 0, 0, time.Local)}
+	writer := &app{smsCachePath: path}
+	if added, _ := writer.mergeSMS([]receivedSMS{want}); added != 1 {
+		t.Fatalf("mergeSMS added %d messages, want 1", added)
+	}
+
+	reader := &app{smsCachePath: path}
+	if err := reader.loadSMSCache(); err != nil {
+		t.Fatalf("loadSMSCache: %v", err)
+	}
+	if len(reader.sms) != 1 || reader.sms[0].Sender != want.Sender || reader.sms[0].Content != want.Content || !reader.sms[0].Timestamp.Equal(want.Timestamp) {
+		t.Fatalf("loaded SMS = %#v, want %#v", reader.sms, want)
 	}
 }

@@ -89,6 +89,7 @@ type app struct {
 
 	smsMu          sync.RWMutex
 	sms            []receivedSMS
+	smsCachePath   string
 	smsSendMu      sync.Mutex
 	smsReassembler *smscodec.Reassembler
 
@@ -263,6 +264,9 @@ func main() {
 				log.Printf("USB AT bridge opened on DJI %s", usbATDevice.Description())
 				instance.initUSBATESIMManager()
 			}
+			if err := instance.loadSMSCache(); err != nil {
+				log.Printf("load SMS cache: %v", err)
+			}
 			log.Printf("modem discovery skipped: %v", err)
 			go instance.startSMSPoller(context.Background())
 			serve(instance, listen)
@@ -289,6 +293,9 @@ func main() {
 	}
 
 	instance := &app{modem: manager, port: port, smsPollInterval: 8 * time.Second, smsAutoCleanupME: true}
+	if err := instance.loadSMSCache(); err != nil {
+		log.Printf("load SMS cache: %v", err)
+	}
 	manager.SetSMSCallback(instance.recordSMS)
 	if err := manager.Start(); err != nil {
 		log.Fatalf("open modem on %s: %v", port, err)
@@ -604,7 +611,77 @@ func (a *app) mergeSMS(messages []receivedSMS) (newCount int, total int) {
 	if len(a.sms) > 500 {
 		a.sms = a.sms[:500]
 	}
+	if newCount > 0 && !a.demo {
+		if err := a.persistSMSCacheLocked(); err != nil {
+			log.Printf("persist SMS cache: %v", err)
+		}
+	}
 	return newCount, len(a.sms)
+}
+
+func (a *app) resolveSMSCachePath() (string, error) {
+	if a.smsCachePath != "" {
+		return a.smsCachePath, nil
+	}
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("locate SMS cache directory: %w", err)
+	}
+	a.smsCachePath = filepath.Join(configDir, "DJ 4G Hub", "sms-messages.json")
+	return a.smsCachePath, nil
+}
+
+func (a *app) loadSMSCache() error {
+	if a.demo {
+		return nil
+	}
+	path, err := a.resolveSMSCachePath()
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read SMS cache: %w", err)
+	}
+	var messages []receivedSMS
+	if err := json.Unmarshal(data, &messages); err != nil {
+		return fmt.Errorf("parse SMS cache: %w", err)
+	}
+	a.smsMu.Lock()
+	defer a.smsMu.Unlock()
+	a.sms = messages
+	sort.SliceStable(a.sms, func(i, j int) bool {
+		return a.sms[i].Timestamp.After(a.sms[j].Timestamp)
+	})
+	if len(a.sms) > 500 {
+		a.sms = a.sms[:500]
+	}
+	return nil
+}
+
+func (a *app) persistSMSCacheLocked() error {
+	path, err := a.resolveSMSCachePath()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("create SMS cache directory: %w", err)
+	}
+	data, err := json.MarshalIndent(a.sms, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode SMS cache: %w", err)
+	}
+	temporary := path + ".tmp"
+	if err := os.WriteFile(temporary, data, 0o600); err != nil {
+		return fmt.Errorf("write SMS cache: %w", err)
+	}
+	if err := os.Rename(temporary, path); err != nil {
+		return fmt.Errorf("replace SMS cache: %w", err)
+	}
+	return nil
 }
 
 func smsCacheKey(item receivedSMS) string {
