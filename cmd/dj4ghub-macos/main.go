@@ -248,7 +248,7 @@ func main() {
 				usbDevice:        usbDevice,
 				usbAT:            usbATDevice,
 				smsPollInterval:  8 * time.Second,
-				smsAutoCleanupME: true,
+				smsAutoCleanupME: false,
 				smsReassembler:   smscodec.NewReassembler(),
 			}
 			if usbDevice != nil {
@@ -292,7 +292,7 @@ func main() {
 		log.Fatalf("create modem manager: %v", err)
 	}
 
-	instance := &app{modem: manager, port: port, smsPollInterval: 8 * time.Second, smsAutoCleanupME: true}
+	instance := &app{modem: manager, port: port, smsPollInterval: 8 * time.Second, smsAutoCleanupME: false}
 	if err := instance.loadSMSCache(); err != nil {
 		log.Printf("load SMS cache: %v", err)
 	}
