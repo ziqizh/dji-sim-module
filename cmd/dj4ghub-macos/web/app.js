@@ -1328,9 +1328,7 @@ $("#reboot-module").addEventListener("click", rebootModule);
 
 loadStatus();
 loadSMS();
-loadSidebarConnection();
-setNetworkTrafficPolling(true);
-setNetworkActivityPolling(true);
+setNetworkTrafficPolling(false);
+setNetworkActivityPolling(false);
 setInterval(loadStatus, 10000);
 setInterval(loadSMS, 5000);
-setInterval(loadSidebarConnection, 10000);

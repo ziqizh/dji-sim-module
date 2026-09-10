@@ -399,7 +399,7 @@ func newDemoApp() *app {
 		sms: []receivedSMS{
 			{
 				Sender:    "10086",
-				Content:   "【DJ 4G Hub 演示】本月套餐剩余流量 18.6GB。",
+				Content:   "【DJI SMS Hub 演示】您的短信服务当前可用。",
 				Timestamp: now.Add(-18 * time.Minute),
 			},
 			{
@@ -1732,8 +1732,8 @@ func (a *app) setUSBNetMode(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &body) {
 		return
 	}
-	if body.Mode < 0 || body.Mode > 3 {
-		writeError(w, http.StatusBadRequest, "only usbnet mode 0, 1, 2 or 3 is allowed")
+	if body.Mode != 0 {
+		writeError(w, http.StatusForbidden, "this SMS-only build does not enable cellular data mode")
 		return
 	}
 	command := fmt.Sprintf(`AT+QCFG="usbnet",%d`, body.Mode)

@@ -33,6 +33,8 @@
   background: var(--canvas);
 }
 
+.tab[hidden], .mode-option[hidden] { display: none !important; }
+
 :root[data-theme="dark"] {
   color-scheme: dark;
   --canvas: #090a0c;
